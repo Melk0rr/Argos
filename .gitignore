@@ -1,0 +1,19 @@
+# Pycache and compiled python files.
+__pycache__/
+*py[cod]
+.pytest_cache/
+
+# Tests folder
+tests/
+
+# Ignore API file
+*/API.py
+
+# Distribution / packaging
+.Python
+build/
+
+
+*.egg-info
+.eggs/
+.vscode/
