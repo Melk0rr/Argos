@@ -1,5 +1,7 @@
-import subprocess, json, re
+import os, subprocess, json, re
 from typing import List, Dict
+
+folder_path = os.path.dirname(os.path.realpath(__file__))
 
 class ADQueryFilterCondition:
   """ Simple class describing condition for an ad query filter """
@@ -44,11 +46,11 @@ class ADQueryFilter:
     """ Getter for conditions """
     return self.conditions
 
-  def get_value(self):
+  def get_value(self) -> str:
     """ Getter for string value """
     return self.value
 
-  def join_conditions(self):
+  def join_conditions(self) -> str:
     """ Recursively joins conditions with separators """
     str_conditions = [ c.to_string() for c in self.conditions ]
     joined = ""
@@ -57,14 +59,115 @@ class ADQueryFilter:
       
     return joined
 
-  def to_query_string(self):
+  def to_query_string(self) -> str:
     """ Returns a query string """
     query_str = ""
-    if len(self.conditions) > 0:
+    if len(self.conditions) > 0 or self.value == "*":
       query_str += "-Filter "
 
     query_str += f"\"{self.value}\""
     return query_str
+
+
+class ADQuery:
+  """ Class to provide ad query manipulations through powershell ad """
+  ad_commands = {
+    "user"    : "Get-ADUser",
+    "computer": "Get-ADComputer",
+    "group"   : "Get-ADGroup",
+    "gpo"     : "Get-GPO"
+  }
+
+  def __init__(self, q_type: str = "user", filter: str = "*", properties: List[str] = []):
+    """ Constructor """
+
+    if q_type not in self.ad_commands.keys():
+      raise ValueError(f"Invalid AD query type provided: {q_type} !")
+
+    self.type = q_type
+    self.command = self.ad_commands[q_type]
+    self.filter = ADQueryFilter(filter)
+    self.properties = properties
+
+    self.credential_paths = {
+      "usr": os.path.join(folder_path, "creds", "runner_usr"),
+      "pwd": os.path.join(folder_path, "creds", "runner_pwd")
+    }
+
+  def get_credential_usr(self):
+    """ Gets the username to use for current query if any """
+    if not os.path.isfile(self.credential_paths["usr"]):
+      raise OSError(f"Invalid username path: {self.credential_paths['usr']}")
+
+    with open(self.credential_paths["usr"], 'r') as f:
+      username = f.readline().strip("\n")
+
+    return username
+
+  def get_credential_pwd(self):
+    """ Gets the username to use for current query if any """
+    if not os.path.isfile(self.credential_paths["pwd"]):
+      raise OSError(f"Invalid password path: {self.credential_paths['pwd']}")
+
+    with open(self.credential_paths["pwd"], 'r') as f:
+      pwd = f.readline().strip("\n")
+
+    return pwd
+
+  def set_credential_paths(self, usr: str, pwd: str):
+    """ Change credentials path for this query """
+    if not os.path.isfile(usr):
+      raise OSError(f"Invalid username path: {usr}")
+
+    if not os.path.isfile(pwd):
+      raise OSError(f"Invalid username path: {pwd}")
+
+    self.credential_paths["usr"] = usr
+    self.credential_paths["pwd"] = pwd
+
+  def forge(self) -> str:
+    """ Forge query to execute """
+    base = self.command
+    base += f" {self.filter.to_query_string()}"
+
+    if len(self.properties) > 0:
+      base += f" -Properties {','.join(self.properties)}"
+
+    return base
+
+  def run(self, server: List[str] = [], use_credentials: bool = False):
+    """ Run AD query """
+
+    forged = self.forge()
+    data = []
+
+    for srv in server:
+      srv_forged = f"{forged} -Server {srv}"
+
+      srv_command = f"""
+      $query = {srv_forged}
+      $query | ConvertTo-Json -WarningAction SilentlyContinue
+      """
+      srv_query = ps_engine(srv_command)
+      data += json.loads(srv_query)
+
+    return data
+
+  @staticmethod
+  def set_credentials(self, path: str, username: str, password: str):
+    """ Set credentials to use for the current query """
+    if not os.path.exists(path):
+      raise OSError(f"Invalid credentials output path provided: {path}")
+
+    command = f"""
+    $username = \"{username}\"
+    $username | Out-File \"{path}\"
+    $pwd = \"{password}\" | ConvertTo-SecureString -AsPlainText -Force
+    $pwd | ConvertFrom-SecureString | Out-File \"{path}\"
+    """
+
+    ps_engine(command)
+        
 
 def ps_engine(cmd):
   """ Mini engine which provides simple powershell command execution """
@@ -81,23 +184,8 @@ def ps_engine(cmd):
 
   if err:
     raise ValueError(f"Argos ps engine::An error occured: {err}")
+
   return data
 
-def get_ad_user(filter):
-  """ Implementation of Get-ADUser command """
-  
-  ad_filter = ADQueryFilter(filter)
-  ad_query = f"get-aduser {ad_filter.to_query_string()}"
 
-  command = f"""
-  $test = {ad_query}
-  $test | ConvertTo-Json -WarningAction SilentlyContinue
-  """
-
-  query = ps_engine(command)
-  return json.loads(query)
-
-
-
-test = get_ad_user("Name -like '*lallement*' -and Enabled -eq 'True'")
-print(test)
+get_user = ADQuery("user", filter="myuser")
