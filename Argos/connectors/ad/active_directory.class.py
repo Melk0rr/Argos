@@ -99,5 +99,7 @@ def get_ad_user(filter):
 
 
 
-test = get_ad_user("Name -like '*lallement*' -and Enabled -eq 'True'")
-print(test)
+# test = get_ad_user("Name -like '*lallement*' -and Enabled -eq 'True'")
+
+print(ps_engine("pwd"))
+# print(test)
