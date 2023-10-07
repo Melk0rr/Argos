@@ -1,5 +1,7 @@
-import os, subprocess, json, re
+import os, json, re
 from typing import List, Dict
+
+from argos.connectors.powershell.engine import ps_engine
 
 folder_path = os.path.dirname(os.path.realpath(__file__))
 
@@ -178,25 +180,6 @@ class ADQuery:
     """
 
     ps_engine(command)
-        
-
-def ps_engine(cmd):
-  """ Mini engine which provides simple powershell command execution """
-  query = subprocess.Popen([
-    "pwsh", "-NoLogo", "-NoProfile",
-    "-command", cmd
-    ],
-    text=True,
-    encoding='utf-8',
-    stdout=subprocess.PIPE
-  )
-  
-  (data, err) = query.communicate()
-
-  if err:
-    raise ValueError(f"Argos ps engine::An error occured: {err}")
-
-  return data
 
 
 get_user = ADQuery("user", filter="j.lallement")
