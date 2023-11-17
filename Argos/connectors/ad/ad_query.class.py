@@ -20,10 +20,11 @@ class ADQueryFilterCondition:
 
 class ADQueryFilter:
   """ Simple class to describe Active Directory filter """
-  def __init__(self, filter: str = "*"):
+  def __init__(self, filter: str = "*", query_type: str):
     """ Constructor """
     self.conditions = []
     self.value = "*"
+    self.query_type = query_type
 
     condition_split = re.split('(-and|-or)', filter)
 
@@ -64,10 +65,22 @@ class ADQueryFilter:
   def to_query_string(self) -> str:
     """ Returns a query string """
     query_str = ""
-    if len(self.conditions) > 0 or self.value == "*":
-      query_str += "-Filter "
 
-    query_str += f"\"{self.value}\""
+    # Handling gpo type : GPO search uses GroupPolicy module not ActiveDirectory module
+    if self.query_type == "gpo":
+      if self.value == "*":
+        query_str += "-All"
+      
+      else:
+        query_str += f"\"{self.value}\""
+
+    # Default behavior using ActiveDirectory module
+    else:
+      if len(self.conditions) > 0 or self.value == "*":
+        query_str += "-Filter "
+
+      query_str += f"\"{self.value}\""
+
     return query_str
 
 
